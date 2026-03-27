@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "scrape": "node scripts/scrape.mjs"
   },
   "dependencies": {
+    "@google/genai": "^1.46.0",
+    "date-fns": "^4.1.0",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -17,8 +20,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "playwright": "^1.58.2",
     "typescript": "^5"
   }
 }
