@@ -1,15 +1,16 @@
-import { chromium } from 'playwright';
+import Parser from 'rss-parser';
 import { GoogleGenAI } from '@google/genai';
 import fs from 'fs';
 import path from 'path';
 import 'dotenv/config';
 
+const parser = new Parser();
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DATA_FILE = path.join(process.cwd(), 'src', 'data', 'deals.json');
 const AMAZON_TAG = 'blogotron-20';
 
 async function run() {
-  console.log("Starting Blogotron Scraper...");
+  console.log("Starting Blogotron RSS Scraper...");
   
   if (!GEMINI_API_KEY) {
     console.warn("⚠️ No GEMINI_API_KEY found. Skipping AI generation.");
@@ -20,72 +21,56 @@ async function run() {
     ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
   }
 
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  console.log("Fetching Slickdeals RSS...");
+  const feed = await parser.parseURL('https://slickdeals.net/newsearch.php?mode=frontpage&searcharea=deals&searchin=first&rss=1');
+  console.log(`Found ${feed.items.length} top deals in RSS.`);
 
-  console.log("Loading Slickdeals frontpage...");
-  await page.goto('https://slickdeals.net/deals/frontpage/', { waitUntil: 'domcontentloaded' });
-  
-  // Basic scraping for deal items
-  const dealElements = await page.$$('.bp-p-dealCard');
-  console.log(`Found ${dealElements.length} deals.`);
-  
   const rawDeals = [];
-  
-  for (let i = 0; i < Math.min(dealElements.length, 15); i++) {
-    try {
-      const el = dealElements[i];
-      const titleEl = await el.$('.bp-c-card_title');
-      const title = titleEl ? await titleEl.innerText() : '';
-      
-      const priceEl = await el.$('.bp-p-dealCard_price');
-      const price = priceEl ? await priceEl.innerText() : '';
-      
-      const heatEl = await el.$('.bp-p-dealCard_score');
-      const heat = heatEl ? parseInt((await heatEl.innerText()).replace(/[^0-9]/g, ''), 10) : 0;
-      
-      const linkEl = await el.$('.bp-c-button--deal-clickout');
-      let linkUrl = linkEl ? await linkEl.getAttribute('href') : '';
-      
-      // We only care about Amazon deals!
-      let isAmazon = false;
-      if (linkUrl && linkUrl.includes('amazon') || title.toLowerCase().includes('amazon')) {
-         isAmazon = true;
-      }
-      
-      if (isAmazon && title && price) {
-        rawDeals.push({ title, price, heat, rawLink: linkUrl });
-      }
-    } catch (e) {
-      console.log(`Error parsing deal card ${i}: ${e.message}`);
+  for (const item of feed.items) {
+    const title = item.title || '';
+    const link = item.link || '';
+    const content = item.contentSnippet || item.content || '';
+    
+    // Attempt to extract price from title (e.g. "... $12.99 ...")
+    const priceMatch = title.match(/\$[0-9]+(\.[0-9]{2})?/);
+    const price = priceMatch ? priceMatch[0] : 'See Price';
+
+    // Must be Amazon related
+    if (title.toLowerCase().includes('amazon') || content.toLowerCase().includes('amazon')) {
+      rawDeals.push({
+        title,
+        price,
+        heat: 100, // RSS doesn't give exact heat, just top deals
+        rawLink: link
+      });
     }
   }
 
   console.log(`Filtered down to ${rawDeals.length} Amazon deals.`);
   
-  // Load existing deals to prevent duplicates
   let existingDeals = [];
   if (fs.existsSync(DATA_FILE)) {
-    existingDeals = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    try {
+      existingDeals = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    } catch (e) {
+      existingDeals = [];
+    }
   }
   const existingTitles = existingDeals.map(d => d.title);
-  
   let newDealsToAdd = [];
 
-  for (const deal of rawDeals) {
+  // Limit to 5 per run to avoid spamming the site layout or API limits during testing
+  const toProcess = rawDeals.slice(0, 5);
+
+  for (const deal of toProcess) {
     if (existingTitles.includes(deal.title)) {
       console.log(`Skipping duplicate: ${deal.title}`);
       continue;
     }
     
-    // Attempt to follow link to get final URL
-    let finalUrl = deal.rawLink;
-    if (finalUrl && finalUrl.startsWith('/')) finalUrl = 'https://slickdeals.net' + finalUrl;
-    
     console.log(`Analyzing: ${deal.title} (${deal.price})`);
     
-    let content = `<p>Premium Amazon deal alert for ${deal.title}. At ${deal.price}, this is a solid buy based on community sentiment.</p>`;
+    let postBody = `<h2>The Deal</h2><p>Premium Amazon deal alert for ${deal.title}. At ${deal.price}, this is a solid buy based on community sentiment.</p>`;
     let isApproved = true;
 
     if (ai) {
@@ -93,10 +78,9 @@ async function run() {
         const sentimentPrompt = `You are a Deals Analyst. Determine if this Amazon deal is worth writing about.
 Deal: ${deal.title}
 Price: ${deal.price}
-Heat Score: ${deal.heat}
 
 Return ONLY: [APPROVE] or [REJECT] followed by a single sentence explaining why.
-Reject low-grade off-brand items. Approve name-brand tech, electronics, PC parts, or high-end home goods.`;
+Reject low-grade off-brand items. Approve name-brand tech, electronics, PC parts, household, or high-quality goods. If unsure, default to APPROVE.`;
 
         const gateResponse = await ai.models.generateContent({
             model: 'gemini-2.0-flash',
@@ -119,16 +103,16 @@ Structure:
 <h2>The Deal</h2> (specs, value, what makes it good)
 <h2>Should You Buy It?</h2> (Urgent closing verdict)
 
-Return raw HTML only (no markdown code blocks, just pure h2 and p tags). Keep it under 250 words.`;
+Return raw HTML only (no markdown code blocks, just pure h2 and p tags). Keep it under 200 words.`;
 
           const contentResponse = await ai.models.generateContent({
              model: 'gemini-2.5-pro',
              contents: contentPrompt,
           });
           
-          let html = contentResponse.text || content;
+          let html = contentResponse.text || postBody;
           html = html.replace(/```html/g, '').replace(/```/g, '').trim();
-          content = html;
+          postBody = html;
         }
       } catch (err) {
         console.error(`AI API Error: ${err.message}`);
@@ -136,15 +120,10 @@ Return raw HTML only (no markdown code blocks, just pure h2 and p tags). Keep it
     }
 
     if (isApproved) {
-      // Clean up Amazon URL and add affiliate tag (blogotron-20)
-      // Note: Full URL resolution would require actually clicking through redirect chains,
-      // Here we assume it's recognizable or just append it.
-      // If we can't extract ASIN easily, we append ?tag=blogotron-20 
-      let affiliateUrl = finalUrl;
-      if (finalUrl && finalUrl.includes('amazon.')) {
-         let urlObj = new URL(finalUrl);
-         urlObj.searchParams.set('tag', AMAZON_TAG);
-         affiliateUrl = urlObj.toString();
+      // Basic affiliate injection
+      let affiliateUrl = deal.rawLink;
+      if (deal.title.toLowerCase().includes('amazon')) {
+          affiliateUrl = deal.rawLink + '?tag=' + AMAZON_TAG; 
       }
 
       newDealsToAdd.push({
@@ -153,18 +132,17 @@ Return raw HTML only (no markdown code blocks, just pure h2 and p tags). Keep it
         price: deal.price,
         heat_score: deal.heat,
         link: affiliateUrl,
-        content: content,
+        content: postBody,
         posted_at: new Date().toISOString()
       });
     }
     
-    // Rate limit delay to avoid ban
     await new Promise(r => setTimeout(r, 2000));
   }
 
-  await browser.close();
-  
   if (newDealsToAdd.length > 0) {
+    // Add real data, filter out mock-001 if present
+    existingDeals = existingDeals.filter(d => d.deal_id !== "mock-001");
     const combined = [...existingDeals, ...newDealsToAdd];
     fs.writeFileSync(DATA_FILE, JSON.stringify(combined, null, 2));
     console.log(`Successfully added ${newDealsToAdd.length} new Amazon deals to the site!`);
