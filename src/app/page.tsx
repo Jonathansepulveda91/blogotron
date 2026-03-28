@@ -30,14 +30,33 @@ export default function Home() {
           ) : (
             deals.map((deal) => (
               <article className="card" key={deal.deal_id}>
-                <div className="card-img-placeholder">
-                  {deal.heat_score > 80 && (
-                    <div className="heat-badge">
-                      🔥 {deal.heat_score} Heat
-                    </div>
-                  )}
-                  <span>IMAGE PLACEHOLDER</span>
-                </div>
+                {deal.image_url ? (
+                  <div className="card-img" style={{
+                    height: '250px',
+                    backgroundImage: `url('${deal.image_url}')`,
+                    backgroundSize: 'contain',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundColor: '#fff',
+                    borderBottom: '1px solid #222',
+                    position: 'relative'
+                  }}>
+                    {deal.heat_score > 80 && (
+                      <div className="heat-badge">
+                        🔥 {deal.heat_score} Heat
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="card-img-placeholder">
+                    {deal.heat_score > 80 && (
+                      <div className="heat-badge">
+                        🔥 {deal.heat_score} Heat
+                      </div>
+                    )}
+                    <span>IMAGE UNAVAILABLE</span>
+                  </div>
+                )}
                 
                 <div className="card-content">
                   <div className="deal-meta">
@@ -49,7 +68,7 @@ export default function Home() {
                   
                   <div 
                     className="card-excerpt"
-                    dangerouslySetInnerHTML={{ __html: deal.content.substring(0, 500) }}
+                    dangerouslySetInnerHTML={{ __html: deal.content.substring(0, 1000) }}
                   />
                   
                   <a href={deal.link} target="_blank" rel="noopener noreferrer" className="btn-primary">
