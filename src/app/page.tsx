@@ -25,59 +25,51 @@ export default function Home() {
       <section className="container">
         <div className="grid">
           {deals.length === 0 ? (
-            <p style={{ textAlign: 'center', gridColumn: '1 / -1', color: '#888' }}>Loading new deals...</p>
+            <p style={{ textAlign: 'center', gridColumn: '1 / -1', color: '#888' }}>No active deals right now. Check back soon.</p>
           ) : (
             deals.map((deal) => {
-              const imgUrl = deal.local_image ? `/images/${deal.local_image}` : deal.image_url;
+              const imgSrc = deal.local_image ? `/images/${deal.local_image}` : null;
               return (
                 <article className="card" key={deal.deal_id}>
-                  {imgUrl ? (
-                    <a href={`/deals/${deal.deal_id}`} style={{ display: 'block' }}>
-                      <div className="card-img" style={{
+                  <a href={`/deals/${deal.deal_id}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+                    {imgSrc ? (
+                      <div style={{
                         height: '220px',
-                        backgroundImage: `url('${imgUrl}')`,
-                        backgroundSize: 'contain',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
                         backgroundColor: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         borderBottom: '1px solid #222',
-                        position: 'relative'
+                        position: 'relative',
+                        overflow: 'hidden'
                       }}>
+                        <img src={imgSrc} alt={deal.title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                         {deal.heat_score > 80 && (
-                          <div className="heat-badge">
-                            🔥 {deal.heat_score} Heat
-                          </div>
+                          <div className="heat-badge">🔥 {deal.heat_score} Heat</div>
                         )}
                       </div>
-                    </a>
-                  ) : (
-                    <div className="card-img-placeholder">
-                      {deal.heat_score > 80 && (
-                        <div className="heat-badge">
-                          🔥 {deal.heat_score} Heat
-                        </div>
-                      )}
-                      <span>NO IMAGE</span>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="card-img-placeholder" style={{ position: 'relative' }}>
+                        {deal.heat_score > 80 && (
+                          <div className="heat-badge">🔥 {deal.heat_score} Heat</div>
+                        )}
+                        <span>📦</span>
+                      </div>
+                    )}
+                  </a>
                   
                   <div className="card-content">
                     <div className="deal-meta">
                       <span className="price">{deal.price}</span>
-                      <span className="retailer" style={{ backgroundColor: '#E31837', color: '#fff' }}>HOT DEAL</span>
+                      <span className="retailer" style={{ backgroundColor: '#E31837', color: '#fff' }}>AMAZON</span>
                     </div>
                     
                     <h2 className="card-title">
-                      <a href={`/deals/${deal.deal_id}`}>{deal.title}</a>
+                      <a href={`/deals/${deal.deal_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>{deal.title}</a>
                     </h2>
                     
-                    <div 
-                      className="card-excerpt"
-                      dangerouslySetInnerHTML={{ __html: deal.content.substring(0, 180) + '...' }}
-                    />
-                    
-                    <a href={`/deals/${deal.deal_id}`} className="btn-primary" style={{ backgroundColor: '#333' }}>
-                      Read Article & Get Deal
+                    <a href={`/deals/${deal.deal_id}`} className="btn-primary" style={{ marginTop: 'auto' }}>
+                      Read Full Article →
                     </a>
                   </div>
                 </article>

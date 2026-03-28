@@ -27,12 +27,14 @@ function resolveFinalUrl(url) {
   }
 }
 
-async function downloadImage(url, filename) {
+function downloadImage(url, filename) {
   try {
-    const res = await fetch(url);
-    if (!res.ok) return false;
-    const arrayBuffer = await res.arrayBuffer();
-    fs.writeFileSync(path.join(IMAGES_DIR, filename), Buffer.from(arrayBuffer));
+    execSync(`curl -s -L -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" -o "${path.join(IMAGES_DIR, filename)}" "${url}"`, { timeout: 15000 });
+    const stats = fs.statSync(path.join(IMAGES_DIR, filename));
+    if (stats.size < 1000) { // Too small, probably a blocked response
+      fs.unlinkSync(path.join(IMAGES_DIR, filename));
+      return false;
+    }
     return true;
   } catch (e) {
     return false;
@@ -81,7 +83,7 @@ async function run() {
     let imageUrl = '';
     const imgMatch = rawContent.match(/<img[^>]+src="([^">]+)"/);
     if (imgMatch && imgMatch[1]) {
-      imageUrl = imgMatch[1].replace('/300x300/', '/1200x1200/');
+      imageUrl = imgMatch[1]; // keep original 300x300 URL — 1200x1200 returns 404
     }
 
     let cleanDescription = rawContent
@@ -158,8 +160,8 @@ async function run() {
     let localImage = null;
     if (deal.imageUrl) {
       const ext = path.extname(new URL(deal.imageUrl).pathname) || '.jpg';
-      const filename = `img_${Date.now()}_${Math.floor(Math.random()*1000)}${ext}`;
-      const success = await downloadImage(deal.imageUrl, filename);
+      const filename = `img_${Date.now()}_${Math.floor(Math.random()*1000)}.jpg`;
+      const success = downloadImage(deal.imageUrl, filename);
       if (success) localImage = filename;
     }
 

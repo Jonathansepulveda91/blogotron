@@ -1,14 +1,27 @@
 import fs from 'fs';
 import path from 'path';
 
-export default function DealPage({ params }: { params: { id: string } }) {
+interface Deal {
+  deal_id: string;
+  title: string;
+  price: string;
+  heat_score: number;
+  link: string;
+  image_url: string;
+  local_image: string | null;
+  content: string;
+  posted_at: string;
+}
+
+export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const dataFilePath = path.join(process.cwd(), 'src', 'data', 'deals.json');
-  let deal = null;
+  let deal: Deal | null = null;
   
   try {
     const fileContents = fs.readFileSync(dataFilePath, 'utf8');
-    const deals = JSON.parse(fileContents);
-    deal = deals.find((d: any) => d.deal_id === params.id);
+    const deals: Deal[] = JSON.parse(fileContents);
+    deal = deals.find((d) => d.deal_id === id) || null;
   } catch (error) {
     console.error("Could not load deals:", error);
   }
@@ -24,8 +37,7 @@ export default function DealPage({ params }: { params: { id: string } }) {
     );
   }
 
-  // Use local image or fallback
-  const imgUrl = deal.local_image ? `/images/${deal.local_image}` : deal.image_url;
+  const imgUrl = deal.local_image ? `/images/${deal.local_image}` : null;
 
   return (
     <article className="container" style={{ maxWidth: '800px', margin: '40px auto' }}>
@@ -41,7 +53,9 @@ export default function DealPage({ params }: { params: { id: string } }) {
       </header>
 
       {imgUrl && (
-        <div style={{ width: '100%', height: '400px', backgroundColor: '#fff', backgroundImage: `url('${imgUrl}')`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', borderRadius: '8px', marginBottom: '40px', border: '1px solid #333' }}></div>
+        <div style={{ width: '100%', height: '400px', backgroundColor: '#fff', borderRadius: '8px', marginBottom: '40px', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={imgUrl} alt={deal.title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+        </div>
       )}
 
       <div className="deal-content" style={{ fontSize: '1.15rem', lineHeight: '1.8' }} dangerouslySetInnerHTML={{ __html: deal.content }} />
@@ -50,7 +64,7 @@ export default function DealPage({ params }: { params: { id: string } }) {
         <h3 style={{ marginBottom: '15px', fontSize: '1.5rem' }}>Current Amazon Price: <span style={{ color: '#E31837', fontSize: '2rem' }}>{deal.price}</span></h3>
         <p style={{ color: '#888', marginBottom: '20px' }}>Prices and availability are accurate as of the time of posting and are subject to change.</p>
         
-        <a href={deal.link} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ padding: '18px 40px', fontSize: '1.3rem', width: '100%', maxWidth: '400px', margin: '0 auto' }}>
+        <a href={deal.link} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ padding: '18px 40px', fontSize: '1.3rem', display: 'block', maxWidth: '400px', margin: '0 auto' }}>
           VIEW DEAL ON AMAZON
         </a>
       </div>
