@@ -119,7 +119,7 @@ async function run() {
   const existingTitles = existingDeals.map(d => d.title);
   let newDealsToAdd = [];
 
-  const toProcess = rawDeals.slice(0, 5); // Limit batch to 5 to avoid heavy playwright usage per run
+  const toProcess = rawDeals.slice(0, 25); // Check up to 25 deals to find active ones
 
   for (const deal of toProcess) {
     if (existingTitles.includes(deal.title)) continue;
